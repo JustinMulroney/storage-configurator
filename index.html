@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Modular Storage Configurator</title>
+<style>
+  :root {
+    --bg: #f4f1ec;
+    --panel: #ffffff;
+    --ink: #2a2723;
+    --muted: #8a8378;
+    --line: #e2ddd4;
+    --accent: #b06a3a;
+    --accent-dark: #8c5128;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    height: 100vh;
+  }
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 0 0 60px;
+  }
+  .brand {
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--panel); z-index: 5;
+  }
+  .brand h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+  .brand p { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+  .section { padding: 18px 24px; border-bottom: 1px solid var(--line); }
+  .section h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px;
+    color: var(--muted); margin: 0 0 14px; font-weight: 700;
+  }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 13px; margin-bottom: 6px; font-weight: 500;
+  }
+  .field label .val { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=number] {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 13px; color: var(--ink); background: #fbfaf8;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch {
+    width: 100%; cursor: pointer; border-radius: 8px; border: 2px solid transparent;
+    padding: 6px; display: flex; align-items: center; gap: 8px; background: #fbfaf8;
+    font-size: 12.5px; transition: border-color .12s;
+  }
+  .swatch.sw-grid { flex: 1 1 calc(50% - 4px); }
+  .swatch .chip { width: 22px; height: 22px; border-radius: 5px; flex: none; border: 1px solid rgba(0,0,0,.12); }
+  .swatch.active { border-color: var(--accent); background: #fff; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { display: none; }
+  .switch .track { position: absolute; inset: 0; background: var(--line); border-radius: 99px; transition: .15s; }
+  .switch .thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track + .thumb { left: 21px; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 11px; border-radius: 9px; border: none; cursor: pointer;
+    font-size: 13.5px; font-weight: 600; transition: .12s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-ghost { background: #fbfaf8; color: var(--ink); border: 1px solid var(--line); }
+  .btn-ghost:hover { background: #f1ede6; }
+  .btn + .btn { margin-top: 9px; }
+
+  /* ---------- Canvas / viewer ---------- */
+  .viewer { position: relative; display: flex; flex-direction: column; min-width: 0; }
+  .stage {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 40px; min-height: 0;
+    background:
+      radial-gradient(120% 120% at 50% 0%, #fbf9f5 0%, #ece7df 100%);
+  }
+  svg.scene { width: 100%; height: 100%; max-width: 1000px; }
+  .cell { fill: transparent; cursor: pointer; }
+  .cell:hover { fill: rgba(176,106,58,.10); }
+  .cell-plus { fill: var(--accent); opacity: 0; pointer-events: none; font-weight: 700; }
+  .cellgroup:hover .cell-plus { opacity: .55; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 18px; padding: 14px 26px;
+    border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .topbar .price { margin-left: auto; text-align: right; }
+  .topbar .price .amount { font-size: 24px; font-weight: 700; letter-spacing: -.5px; }
+  .topbar .price .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .pill {
+    font-size: 12px; color: var(--muted); background: #f1ede6; border-radius: 99px;
+    padding: 5px 12px; display: inline-flex; gap: 6px; align-items: center;
+  }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); padding: 10px 26px; border-top: 1px solid var(--line); background: var(--panel); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  /* summary modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(30,26,22,.45); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .modal-bg.open { display: flex; }
+  .modal { background: #fff; border-radius: 14px; width: min(560px, 92vw); max-height: 86vh; overflow: auto; box-shadow: var(--shadow); }
+  .modal-h { padding: 20px 24px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+  .modal-h h3 { margin: 0; font-size: 16px; }
+  .modal-b { padding: 20px 24px; font-size: 13.5px; }
+  .modal-b table { width: 100%; border-collapse: collapse; }
+  .modal-b td { padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .modal-b td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .modal-b .tot td { font-weight: 700; border-bottom: none; padding-top: 12px; }
+  .x { cursor: pointer; color: var(--muted); font-size: 20px; line-height: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>⌗ Modular Storage Studio</h1>
+      <p>Design your pole &amp; plank wall system</p>
+    </div>
+
+    <div class="section">
+      <h2>Dimensions (mm)</h2>
+      <div class="row2">
+        <div class="field">
+          <label>Width <span class="val" id="v-width">2000</span></label>
+          <input type="range" id="width" min="800" max="4000" step="50" value="2000">
+        </div>
+        <div class="field">
+          <label>Height <span class="val" id="v-height">2000</span></label>
+          <input type="range" id="height" min="900" max="2700" step="50" value="2000">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Depth <span class="val" id="v-depth">350</span></label>
+          <input type="range" id="depth" min="200" max="600" step="10" value="350">
+        </div>
+        <div class="field">
+          <label>Plank thickness <span class="val" id="v-thick">30</span></label>
+          <input type="range" id="thick" min="15" max="50" step="1" value="30">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Structure</h2>
+      <div class="field">
+        <label>Columns (poles) <span class="val" id="v-cols">5</span></label>
+        <input type="range" id="cols" min="2" max="8" step="1" value="5">
+      </div>
+      <div class="field">
+        <label>Rows (shelf levels) <span class="val" id="v-rows">6</span></label>
+        <input type="range" id="rows" min="2" max="9" step="1" value="6">
+      </div>
+      <div class="field">
+        <label>Pole diameter <span class="val" id="v-pole">40</span></label>
+        <input type="range" id="pole" min="20" max="70" step="2" value="40">
+      </div>
+      <div class="toggle-row">
+        <span>Shepherd's-crook tops</span>
+        <label class="switch"><input type="checkbox" id="hooks" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Plank material</h2>
+      <div class="swatches" id="woods"></div>
+    </div>
+
+    <div class="section">
+      <h2>Pole finish</h2>
+      <div class="swatches" id="poles"></div>
+    </div>
+
+    <div class="section">
+      <h2>Add-ons</h2>
+      <div class="toggle-row">
+        <span>Rolling drawer cabinet</span>
+        <label class="switch"><input type="checkbox" id="drawer" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Desk surface (deeper plank)</span>
+        <label class="switch"><input type="checkbox" id="desk" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <p class="hint" style="margin-top:10px">The desk uses the lowest active row as a worktop and is rendered deeper. The drawer cabinet sits under it.</p>
+    </div>
+
+    <div class="section">
+      <h2>Configuration</h2>
+      <button class="btn btn-primary" id="btn-quote">Request a quote →</button>
+      <button class="btn btn-ghost" id="btn-summary">View summary &amp; price breakdown</button>
+      <button class="btn btn-ghost" id="btn-fill">Auto-fill shelves</button>
+      <button class="btn btn-ghost" id="btn-clear">Clear all shelves</button>
+      <button class="btn btn-ghost" id="btn-export">Export configuration (JSON)</button>
+    </div>
+  </aside>
+
+  <!-- ============ VIEWER ============ -->
+  <main class="viewer">
+    <div class="topbar">
+      <span class="pill">🛈 Click a cell between poles to add / remove a plank</span>
+      <div class="price">
+        <div class="amount" id="price">€0</div>
+        <div class="label">Estimated price</div>
+      </div>
+    </div>
+    <div class="stage">
+      <svg class="scene" id="scene" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:#b88a5a"></i> Planks</span>
+      <span><i id="leg-pole" style="background:#b8bcc0"></i> Poles</span>
+      <span id="leg-info"></span>
+    </div>
+  </main>
+</div>
+
+<!-- Quote request modal -->
+<div class="modal-bg" id="qmodal">
+  <div class="modal">
+    <div class="modal-h">
+      <h3>Request a quote</h3>
+      <span class="x" id="qmodal-x">✕</span>
+    </div>
+    <div class="modal-b">
+      <div class="field"><label>Name</label><input type="text" id="q-name" placeholder="Your name"></div>
+      <div class="field"><label>Email</label><input type="email" id="q-email" placeholder="you@example.com"></div>
+      <div class="field"><label>Phone (optional)</label><input type="text" id="q-phone" placeholder="+00 000 000 000"></div>
+      <div class="field"><label>Notes (optional)</label><textarea id="q-notes" rows="3" placeholder="Delivery, installation, colour questions…" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;background:#fbfaf8"></textarea></div>
+      <div id="q-recap" style="background:#faf7f2;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;margin:6px 0 16px"></div>
+      <button class="btn btn-primary" id="q-send">Send request by email</button>
+      <button class="btn btn-ghost" id="q-copy" style="margin-top:9px">Copy configuration to clipboard</button>
+      <p class="hint" id="q-status" style="margin-top:12px"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Summary modal -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-h">
+      <h3>Configuration summary</h3>
+      <span class="x" id="modal-x">✕</span>
+    </div>
+    <div class="modal-b" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Materials
+   ============================================================ */
+const WOODS = [
+  { id:'oak',     name:'Oak',          color:'#c79a63', edge:'#a87c46', price:78 },
+  { id:'walnut',  name:'Walnut',       color:'#6e4a2f', edge:'#523620', price:142 },
+  { id:'whiteoak',name:'White oak',    color:'#d7c19c', edge:'#bda377', price:96 },
+  { id:'pine',    name:'Pine',         color:'#dcc196', edge:'#c4a877', price:52 },
+  { id:'bamboo',  name:'Bamboo',       color:'#d3b483', edge:'#b8975f', price:88 },
+  { id:'white',   name:'White MDF',    color:'#eceae5', edge:'#cfccc4', price:46 },
+];
+const POLE_FINISHES = [
+  { id:'steel', name:'Brushed steel', color:'#b8bcc0', hi:'#e4e7ea', price:34 },
+  { id:'black', name:'Matte black',   color:'#2c2c30', hi:'#54545a', price:30 },
+  { id:'brass', name:'Brass',         color:'#bf9a4e', hi:'#e7cf91', price:56 },
+  { id:'white', name:'Powder white',  color:'#f2f1ee', hi:'#ffffff', price:32 },
+];
+
+/* ============================================================
+   State
+   ============================================================ */
+const state = {
+  width:2000, height:2000, depth:350, thick:30,
+  cols:5, rows:6, pole:40, hooks:true,
+  wood:'oak', poleFinish:'steel',
+  drawer:true, desk:true,
+  cells:new Set(),       // "bay-row" keys (bay 0..cols-2, row 0..rows-1, row 0 = bottom)
+  rowHeights:null,       // mm from floor, per row index (lowest = index 0); set by ensureRows()
+};
+
+/* Where quote requests are sent. Change this to your shop's address. */
+const QUOTE_EMAIL = 'orders@example.com';
+
+function defaultLayout(){
+  // resembles the reference drawing for the default 5-col / 6-row grid
+  state.cells = new Set([
+    '0-5','1-5','2-5','3-5',   // top long shelf
+    '0-4','1-4','2-4','3-4',   // second long shelf
+    '0-3',                      // left mid
+    '0-2','2-2',                // left low + center
+    '0-0','1-0','2-0','3-0',   // worktop row
+  ]);
+}
+defaultLayout();
+
+/* ============================================================
+   Build material swatch UI
+   ============================================================ */
+const woodsEl = document.getElementById('woods');
+WOODS.forEach(w=>{
+  const b=document.createElement('div');
+  b.className='swatch sw-grid'+(w.id===state.wood?' active':'');
+  b.dataset.id=w.id;
+  b.innerHTML=`<span class="chip" style="background:${w.color}"></span>${w.name}`;
+  b.onclick=()=>{ state.wood=w.id; document.querySelectorAll('#woods .swatch').forEach(s=>s.classList.toggle('active',s.dataset.id===w.id)); render(); };
+  woodsEl.appendChild(b);
+});
+const polesEl = document.getElementById('poles');
+POLE_FINISHES.forEach(p=>{
+  const b=document.createElement('div');
+  b.className='swatch sw-grid'+(p.id===state.poleFinish?' active':'');
+  b.dataset.id=p.id;
+  b.innerHTML=`<span class="chip" style="background:${p.color}"></span>${p.name}`;
+  b.onclick=()=>{ state.poleFinish=p.id; document.querySelectorAll('#poles .swatch').forEach(s=>s.classList.toggle('active',s.dataset.id===p.id)); render(); };
+  polesEl.appendChild(b);
+});
+
+/* ============================================================
+   Bind controls
+   ============================================================ */
+const bindRange = (id, key, label) => {
+  const el=document.getElementById(id), out=document.getElementById('v-'+label);
+  el.value=state[key]; out.textContent=state[key];
+  el.oninput=()=>{ state[key]=+el.value; out.textContent=el.value; clampCells(); render(); };
+};
+bindRange('width','width','width');
+bindRange('height','height','height');
+bindRange('depth','depth','depth');
+bindRange('thick','thick','thick');
+bindRange('cols','cols','cols');
+bindRange('rows','rows','rows');
+bindRange('pole','pole','pole');
+
+document.getElementById('hooks').onchange=e=>{ state.hooks=e.target.checked; render(); };
+document.getElementById('drawer').onchange=e=>{ state.drawer=e.target.checked; render(); };
+document.getElementById('desk').onchange=e=>{ state.desk=e.target.checked; render(); };
+
+// drop cells that fall outside the grid when cols/rows shrink
+function clampCells(){
+  const bays=state.cols-1;
+  state.cells.forEach(k=>{
+    const [b,r]=k.split('-').map(Number);
+    if(b>=bays || r>=state.rows) state.cells.delete(k);
+  });
+}
+
+/* ============================================================
+   Geometry helpers
+   ============================================================ */
+const M = 220;                       // drawing margin (mm) around the unit
+const MIN_H = 150;                    // lowest a shelf may sit (mm)
+const MIN_GAP = 110;                  // min vertical gap between adjacent rows (mm)
+
+function rowTop(){ return Math.max(state.height - (state.hooks?150:60), MIN_H+300); }
+
+// Build / resize the per-row height array, preserving existing positions.
+function ensureRows(){
+  const top=rowTop(), bottom=720, n=state.rows;
+  const prev=state.rowHeights||[];
+  const arr=[];
+  for(let r=0;r<n;r++){
+    arr.push( prev[r]!=null ? prev[r] : (n>1 ? bottom+((top-bottom)/(n-1))*r : bottom) );
+  }
+  // clamp to range, then keep ascending (index 0 = lowest = worktop)
+  for(let r=0;r<n;r++) arr[r]=Math.min(Math.max(arr[r],MIN_H),top);
+  arr.sort((a,b)=>a-b);
+  for(let r=1;r<n;r++) if(arr[r]-arr[r-1]<MIN_GAP) arr[r]=arr[r-1]+MIN_GAP;
+  if(arr[n-1]>top){ const over=arr[n-1]-top; for(let r=0;r<n;r++) arr[r]=Math.max(MIN_H,arr[r]-over); }
+  state.rowHeights=arr;
+}
+
+function geom(){
+  const {width,cols}=state;
+  const bays=cols-1;
+  const poleX=[];
+  for(let i=0;i<cols;i++) poleX.push( (width/(cols-1))*i );
+  return {bays,poleX,rowH:state.rowHeights,bottom:state.rowHeights[0]};
+}
+// convert floor-height (mm) to svg-y (top origin)
+const Y = h => state.height - h;
+
+/* ============================================================
+   Render
+   ============================================================ */
+const svg = document.getElementById('scene');
+
+function render(){
+  ensureRows();
+  const {width,height,depth,thick,cols,rows,pole}=state;
+  const wood=WOODS.find(w=>w.id===state.wood);
+  const fin=POLE_FINISHES.find(p=>p.id===state.poleFinish);
+  const {bays,poleX,rowH,bottom}=geom();
+
+  document.getElementById('leg-pole').style.background=fin.color;
+
+  const vbW=width+M*2, vbH=height+M*1.5;
+  svg.setAttribute('viewBox',`${-M} ${-M*0.5} ${vbW} ${vbH}`);
+  let s='';
+
+  // defs: gradients
+  s+=`<defs>
+    <linearGradient id="poleG" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="${fin.color}"/>
+      <stop offset=".35" stop-color="${fin.hi}"/>
+      <stop offset="1" stop-color="${fin.color}"/>
+    </linearGradient>
+    <linearGradient id="woodG" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="${wood.color}"/>
+      <stop offset="1" stop-color="${wood.edge}"/>
+    </linearGradient>
+    <linearGradient id="floorG" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d9d2c6"/>
+      <stop offset="1" stop-color="#cfc7b9"/>
+    </linearGradient>
+  </defs>`;
+
+  // floor
+  s+=`<rect x="${-M*0.4}" y="${Y(0)}" width="${width+M*0.8}" height="${M*0.5}" fill="url(#floorG)"/>`;
+  s+=`<line x1="${-M*0.4}" y1="${Y(0)}" x2="${width+M*0.4}" y2="${Y(0)}" stroke="#b9b1a3" stroke-width="3"/>`;
+
+  const r=pole/2;
+  const topY = Y(height) ;        // top of poles
+  const desk = state.desk;
+  // worktop deeper rendering handled via plank thickness multiplier on row 0 when desk on
+
+  // ---- POLES (drawn behind planks) ----
+  for(let i=0;i<cols;i++){
+    const x=poleX[i];
+    // shaft
+    s+=`<rect x="${x-r}" y="${topY}" width="${pole}" height="${height}" rx="${r}" fill="url(#poleG)" stroke="rgba(0,0,0,.12)" stroke-width="1"/>`;
+    // hook
+    if(state.hooks){
+      const hookR=pole*1.6;
+      const cyTop=topY;
+      // shepherd's-crook: a rounded path curving forward
+      s+=`<path d="M ${x-r} ${cyTop}
+              C ${x-r} ${cyTop-hookR*1.2}, ${x+hookR} ${cyTop-hookR*1.3}, ${x+hookR} ${cyTop-hookR*0.2}
+              L ${x+hookR-pole} ${cyTop-hookR*0.2}
+              C ${x+hookR-pole} ${cyTop-hookR*0.75}, ${x+r} ${cyTop-hookR*0.7}, ${x+r} ${cyTop}
+              Z"
+            fill="url(#poleG)" stroke="rgba(0,0,0,.12)" stroke-width="1"/>`;
+    } else {
+      s+=`<rect x="${x-r}" y="${topY-2}" width="${pole}" height="${pole*0.5}" rx="${r}" fill="${fin.hi}"/>`;
+    }
+  }
+
+  // ---- PLANKS ----
+  // group cells by row, find consecutive bay runs
+  const overhang = pole*0.9;
+  for(let row=0;row<rows;row++){
+    let bay=0;
+    while(bay<bays){
+      if(state.cells.has(`${bay}-${row}`)){
+        let end=bay;
+        while(end+1<bays && state.cells.has(`${end+1}-${row}`)) end++;
+        const x1=poleX[bay]-overhang, x2=poleX[end+1]+overhang;
+        const isDesk = desk && row===0;
+        const th = isDesk? thick*1.4 : thick;
+        const yTop=Y(rowH[row]);
+        // depth shadow (gives a hint of 3D)
+        s+=`<rect x="${x1+6}" y="${yTop+4}" width="${x2-x1}" height="${th}" rx="3" fill="rgba(0,0,0,.10)"/>`;
+        s+=`<rect x="${x1}" y="${yTop}" width="${x2-x1}" height="${th}" rx="3" fill="url(#woodG)" stroke="${wood.edge}" stroke-width="1.5"/>`;
+        // top highlight
+        s+=`<rect x="${x1+3}" y="${yTop+2}" width="${x2-x1-6}" height="${Math.max(th*0.18,3)}" rx="2" fill="rgba(255,255,255,.18)"/>`;
+        bay=end+1;
+      } else bay++;
+    }
+  }
+
+  // ---- DESK / DRAWER add-ons ----
+  if(state.drawer){
+    // place under the worktop row, in the first occupied bay of row 0 (fallback bay 0)
+    let db=0;
+    for(let b=0;b<bays;b++){ if(state.cells.has(`${b}-0`)){ db=b; break; } }
+    const cw=Math.min((poleX[db+1]-poleX[db])*0.62, 520);
+    const cx=poleX[db]+ (poleX[db+1]-poleX[db]-cw)/2 + 20;
+    const cTop=Y(rowH[0]) + (state.desk?thick*1.4:thick);
+    const cH=Y(60)-cTop;
+    s+=`<rect x="${cx}" y="${cTop}" width="${cw}" height="${cH}" rx="6" fill="#f3f1ec" stroke="#cfc8bb" stroke-width="2"/>`;
+    for(let d=0;d<3;d++){
+      const dy=cTop+10+d*(cH-20)/3;
+      s+=`<rect x="${cx+10}" y="${dy}" width="${cw-20}" height="${(cH-20)/3-8}" rx="4" fill="#fbfaf7" stroke="#ded7c9"/>`;
+      s+=`<rect x="${cx+cw/2-22}" y="${dy+((cH-20)/3-8)/2-2}" width="44" height="4" rx="2" fill="#b9b1a3"/>`;
+    }
+    // castors
+    s+=`<circle cx="${cx+16}" cy="${Y(60)+10}" r="14" fill="#3a3a3e"/><circle cx="${cx+cw-16}" cy="${Y(60)+10}" r="14" fill="#3a3a3e"/>`;
+  }
+
+  // ---- interactive cells ----
+  for(let row=0;row<rows;row++){
+    for(let b=0;b<bays;b++){
+      const x1=poleX[b], x2=poleX[b+1];
+      const yTop=Y(rowH[row]);
+      const active=state.cells.has(`${b}-${row}`);
+      const gapUp = row<rows-1 ? rowH[row+1]-rowH[row] : rowTop()-rowH[row]+200;
+      const cellH=Math.min(Math.max(gapUp*0.78,90), 230);
+      s+=`<g class="cellgroup">
+            <rect class="cell" data-b="${b}" data-r="${row}" x="${x1}" y="${yTop-cellH+thick}" width="${x2-x1}" height="${cellH}" />
+            ${active?'':`<text class="cell-plus" x="${(x1+x2)/2}" y="${yTop-cellH/2+thick}" font-size="${state.pole*1.6}" text-anchor="middle" dominant-baseline="middle">+</text>`}
+          </g>`;
+    }
+  }
+
+  // ---- draggable row-height handles ----
+  for(let row=0;row<rows;row++){
+    const cy=Y(rowH[row])+thick/2;
+    const pw=Math.max(pole*1.15,34), ph=Math.max(pole*1.3,34);
+    const hx=-pw-10;
+    s+=`<g class="rowhandle" data-r="${row}" style="cursor:ns-resize">
+          <rect x="${hx}" y="${cy-ph/2}" width="${pw}" height="${ph}" rx="6" fill="#fff" stroke="#b06a3a" stroke-width="2.5"/>
+          <text x="${hx+pw/2}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${ph*0.55}" fill="#b06a3a">⇕</text>
+          <text x="${hx-7}" y="${cy}" text-anchor="end" dominant-baseline="central" font-size="32" fill="#9a9284">${Math.round(rowH[row])}</text>
+        </g>`;
+  }
+
+  // ---- dimension lines ----
+  const dimC='#9a9284';
+  // width
+  const wy=Y(0)+M*0.32;
+  s+=`<line x1="0" y1="${wy}" x2="${width}" y2="${wy}" stroke="${dimC}" stroke-width="2"/>
+      <line x1="0" y1="${wy-12}" x2="0" y2="${wy+12}" stroke="${dimC}" stroke-width="2"/>
+      <line x1="${width}" y1="${wy-12}" x2="${width}" y2="${wy+12}" stroke="${dimC}" stroke-width="2"/>
+      <rect x="${width/2-70}" y="${wy-16}" width="140" height="32" rx="5" fill="#f4f1ec"/>
+      <text x="${width/2}" y="${wy+6}" text-anchor="middle" font-size="46" fill="#6a6359">${width} mm</text>`;
+  // height
+  const hx=-M*0.82;
+  s+=`<line x1="${hx}" y1="${Y(0)}" x2="${hx}" y2="${Y(height)}" stroke="${dimC}" stroke-width="2"/>
+      <line x1="${hx-12}" y1="${Y(0)}" x2="${hx+12}" y2="${Y(0)}" stroke="${dimC}" stroke-width="2"/>
+      <line x1="${hx-12}" y1="${Y(height)}" x2="${hx+12}" y2="${Y(height)}" stroke="${dimC}" stroke-width="2"/>
+      <g transform="translate(${hx},${height/2}) rotate(-90)">
+        <rect x="-70" y="-16" width="140" height="32" rx="5" fill="#f4f1ec"/>
+        <text x="0" y="6" text-anchor="middle" font-size="46" fill="#6a6359">${height} mm</text>
+      </g>`;
+
+  svg.innerHTML=s;
+
+  // attach cell handlers
+  svg.querySelectorAll('.cell').forEach(c=>{
+    c.onclick=()=>{
+      const k=`${c.dataset.b}-${c.dataset.r}`;
+      state.cells.has(k)?state.cells.delete(k):state.cells.add(k);
+      render();
+    };
+  });
+  // attach row-height drag handles
+  svg.querySelectorAll('.rowhandle').forEach(h=>{
+    h.addEventListener('pointerdown',e=>{ dragRow=+h.dataset.r; e.preventDefault(); });
+  });
+
+  updatePrice(wood,fin);
+}
+
+/* ---- row-height dragging ---- */
+let dragRow=null;
+function svgYfromClient(clientY){
+  const ctm=svg.getScreenCTM(); if(!ctm) return null;
+  const pt=svg.createSVGPoint(); pt.x=0; pt.y=clientY;
+  return pt.matrixTransform(ctm.inverse()).y;
+}
+window.addEventListener('pointermove',e=>{
+  if(dragRow==null) return;
+  const y=svgYfromClient(e.clientY); if(y==null) return;
+  const h=state.height-y;
+  const lo = dragRow>0 ? state.rowHeights[dragRow-1]+MIN_GAP : MIN_H;
+  const hi = dragRow<state.rows-1 ? state.rowHeights[dragRow+1]-MIN_GAP : rowTop();
+  state.rowHeights[dragRow]=Math.min(Math.max(h,lo),hi);
+  render();
+});
+window.addEventListener('pointerup',()=>{ dragRow=null; });
+
+/* ============================================================
+   Pricing
+   ============================================================ */
+function metrics(){
+  const {width,depth,thick,cols,height}=state;
+  const {bays,poleX,rowH}=geom();
+  const overhang=state.pole*0.9;
+  // plank length
+  let plankLen=0, plankCount=0, deskArea=0;
+  for(let row=0;row<state.rows;row++){
+    let bay=0;
+    while(bay<bays){
+      if(state.cells.has(`${bay}-${row}`)){
+        let end=bay; while(end+1<bays && state.cells.has(`${end+1}-${row}`)) end++;
+        const len=(poleX[end+1]+overhang)-(poleX[bay]-overhang);
+        plankLen+=len; plankCount++;
+        if(state.desk && row===0) deskArea += len*(depth*1.2)/1e6;
+        bay=end+1;
+      } else bay++;
+    }
+  }
+  const plankArea = plankLen*depth/1e6;        // m² (approx, desk extra counted separately)
+  const poleLen = cols*height/1000;            // m total
+  return {plankArea:plankArea+deskArea, plankCount, poleLen, poleCount:cols};
+}
+function updatePrice(wood,fin){
+  const m=metrics();
+  const plankCost = m.plankArea * wood.price;
+  const poleCost  = m.poleLen * fin.price;
+  const drawerCost= state.drawer?180:0;
+  const hardware  = m.poleCount*12 + m.plankCount*8;   // brackets/clamps
+  const total = plankCost+poleCost+drawerCost+hardware;
+  window._cost={plankCost,poleCost,drawerCost,hardware,total,m};
+  document.getElementById('price').textContent='€'+Math.round(total).toLocaleString('en-US');
+  document.getElementById('leg-info').textContent=`${m.plankCount} planks · ${m.poleCount} poles · ${m.plankArea.toFixed(2)} m² surface`;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+document.getElementById('btn-clear').onclick=()=>{ state.cells.clear(); render(); };
+document.getElementById('btn-fill').onclick=()=>{
+  state.cells.clear();
+  const bays=state.cols-1;
+  for(let r=0;r<state.rows;r++) for(let b=0;b<bays;b++) state.cells.add(`${b}-${r}`);
+  render();
+};
+document.getElementById('btn-export').onclick=()=>{
+  const data={...state, cells:[...state.cells], price:window._cost?.total};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='storage-config.json'; a.click();
+};
+const modal=document.getElementById('modal');
+document.getElementById('modal-x').onclick=()=>modal.classList.remove('open');
+modal.onclick=e=>{ if(e.target===modal) modal.classList.remove('open'); };
+document.getElementById('btn-summary').onclick=()=>{
+  const c=window._cost; const wood=WOODS.find(w=>w.id===state.wood); const fin=POLE_FINISHES.find(p=>p.id===state.poleFinish);
+  const money=n=>'€'+Math.round(n).toLocaleString('en-US');
+  document.getElementById('modal-body').innerHTML=`
+    <table>
+      <tr><td>Overall size (W×H×D)</td><td>${state.width} × ${state.height} × ${state.depth} mm</td></tr>
+      <tr><td>Poles</td><td>${state.cols} × ${fin.name} (Ø${state.pole} mm)</td></tr>
+      <tr><td>Shelf levels available</td><td>${state.rows}</td></tr>
+      <tr><td>Plank material</td><td>${wood.name}, ${state.thick} mm thick</td></tr>
+      <tr><td>Planks placed</td><td>${c.m.plankCount} (${c.m.plankArea.toFixed(2)} m²)</td></tr>
+      <tr><td>Drawer cabinet</td><td>${state.drawer?'Yes':'No'}</td></tr>
+      <tr><td>Desk worktop</td><td>${state.desk?'Yes':'No'}</td></tr>
+    </table>
+    <h4 style="margin:18px 0 8px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8a8378">Price breakdown</h4>
+    <table>
+      <tr><td>Planks (${wood.name})</td><td>${money(c.plankCost)}</td></tr>
+      <tr><td>Poles (${fin.name})</td><td>${money(c.poleCost)}</td></tr>
+      <tr><td>Hardware (clamps &amp; brackets)</td><td>${money(c.hardware)}</td></tr>
+      ${state.drawer?`<tr><td>Rolling drawer cabinet</td><td>${money(c.drawerCost)}</td></tr>`:''}
+      <tr class="tot"><td>Estimated total</td><td>${money(c.total)}</td></tr>
+    </table>
+    <p class="hint" style="margin-top:16px">Indicative pricing for configuration preview only. Final quote depends on finishes, delivery and installation.</p>`;
+  modal.classList.add('open');
+};
+
+/* ============================================================
+   Quote request
+   ============================================================ */
+function configText(){
+  const c=window._cost, wood=WOODS.find(w=>w.id===state.wood), fin=POLE_FINISHES.find(p=>p.id===state.poleFinish);
+  const money=n=>'EUR '+Math.round(n).toLocaleString('en-US');
+  const heights=state.rowHeights.map(h=>Math.round(h)+'mm').join(', ');
+  return [
+    'MODULAR STORAGE — CONFIGURATION',
+    '----------------------------------------',
+    `Overall (W x H x D): ${state.width} x ${state.height} x ${state.depth} mm`,
+    `Plank material:      ${wood.name}, ${state.thick} mm thick`,
+    `Poles:               ${state.cols} x ${fin.name}, Ø${state.pole} mm`,
+    `Shelf levels:        ${state.rows}  (heights from floor: ${heights})`,
+    `Planks placed:       ${c.m.plankCount}  (${c.m.plankArea.toFixed(2)} m²)`,
+    `Drawer cabinet:      ${state.drawer?'Yes':'No'}`,
+    `Desk worktop:        ${state.desk?'Yes':'No'}`,
+    '----------------------------------------',
+    `Planks:    ${money(c.plankCost)}`,
+    `Poles:     ${money(c.poleCost)}`,
+    `Hardware:  ${money(c.hardware)}`,
+    state.drawer?`Drawer:    ${money(c.drawerCost)}`:null,
+    `ESTIMATED TOTAL: ${money(c.total)}`,
+  ].filter(Boolean).join('\n');
+}
+
+const qmodal=document.getElementById('qmodal');
+function openQuote(){
+  document.getElementById('q-recap').textContent=configText();
+  document.getElementById('q-status').textContent='';
+  qmodal.classList.add('open');
+}
+document.getElementById('btn-quote').onclick=openQuote;
+document.getElementById('qmodal-x').onclick=()=>qmodal.classList.remove('open');
+qmodal.onclick=e=>{ if(e.target===qmodal) qmodal.classList.remove('open'); };
+
+document.getElementById('q-send').onclick=()=>{
+  const name=document.getElementById('q-name').value.trim();
+  const email=document.getElementById('q-email').value.trim();
+  const phone=document.getElementById('q-phone').value.trim();
+  const notes=document.getElementById('q-notes').value.trim();
+  const body=
+    `Hi,\n\nI'd like a quote for the following storage configuration.\n\n`+
+    `Name:  ${name||'-'}\nEmail: ${email||'-'}\nPhone: ${phone||'-'}\n`+
+    (notes?`Notes: ${notes}\n`:'')+
+    `\n${configText()}\n`;
+  const subject=`Quote request — ${state.width}×${state.height} ${WOODS.find(w=>w.id===state.wood).name} storage`;
+  window.location.href=`mailto:${QUOTE_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  document.getElementById('q-status').textContent='Opening your email app… if nothing happens, use “Copy configuration” and paste it into an email.';
+};
+document.getElementById('q-copy').onclick=async()=>{
+  try{ await navigator.clipboard.writeText(configText()); document.getElementById('q-status').textContent='Configuration copied to clipboard ✓'; }
+  catch{ document.getElementById('q-status').textContent='Copy failed — select the text above manually.'; }
+};
+
+render();
+</script>
+</body>
+</html>
