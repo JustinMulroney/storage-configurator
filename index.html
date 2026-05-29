@@ -59,6 +59,14 @@
     width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
     font-size: 13px; color: var(--ink); background: #fbfaf8;
   }
+  /* compact number box that pairs with a slider (input.numin beats input[type=number]) */
+  input.numin {
+    width: 68px; flex: none; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px;
+    font-size: 13px; text-align: right; color: var(--accent); font-weight: 600;
+    background: #fbfaf8; font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+  }
+  input.numin:focus { outline: none; border-color: var(--accent); background: #fff; }
+  .numin::-webkit-outer-spin-button, .numin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
   .swatch {
@@ -167,21 +175,21 @@
       <h2>Dimensions (mm)</h2>
       <div class="row2">
         <div class="field">
-          <label>Width <span class="val" id="v-width">2000</span></label>
+          <label>Width <input type="number" class="numin" id="width-num" min="800" max="4000" step="10" inputmode="numeric"></label>
           <input type="range" id="width" min="800" max="4000" step="50" value="2000">
         </div>
         <div class="field">
-          <label>Height <span class="val" id="v-height">2000</span></label>
+          <label>Height <input type="number" class="numin" id="height-num" min="900" max="2700" step="10" inputmode="numeric"></label>
           <input type="range" id="height" min="900" max="2700" step="50" value="2000">
         </div>
       </div>
       <div class="row2">
         <div class="field">
-          <label>Depth <span class="val" id="v-depth">350</span></label>
+          <label>Depth <input type="number" class="numin" id="depth-num" min="200" max="600" step="10" inputmode="numeric"></label>
           <input type="range" id="depth" min="200" max="600" step="10" value="350">
         </div>
         <div class="field">
-          <label>Plank thickness <span class="val" id="v-thick">30</span></label>
+          <label>Thickness <input type="number" class="numin" id="thick-num" min="15" max="50" step="1" inputmode="numeric"></label>
           <input type="range" id="thick" min="15" max="50" step="1" value="30">
         </div>
       </div>
@@ -190,15 +198,15 @@
     <div class="section">
       <h2>Structure</h2>
       <div class="field">
-        <label>Columns (poles) <span class="val" id="v-cols">5</span></label>
+        <label>Columns (poles) <input type="number" class="numin" id="cols-num" min="2" max="8" step="1" inputmode="numeric"></label>
         <input type="range" id="cols" min="2" max="8" step="1" value="5">
       </div>
       <div class="field">
-        <label>Rows (shelf levels) <span class="val" id="v-rows">6</span></label>
+        <label>Rows (shelf levels) <input type="number" class="numin" id="rows-num" min="2" max="9" step="1" inputmode="numeric"></label>
         <input type="range" id="rows" min="2" max="9" step="1" value="6">
       </div>
       <div class="field">
-        <label>Pole diameter <span class="val" id="v-pole">40</span></label>
+        <label>Pole diameter <input type="number" class="numin" id="pole-num" min="20" max="70" step="1" inputmode="numeric"></label>
         <input type="range" id="pole" min="20" max="70" step="2" value="40">
       </div>
       <div class="toggle-row">
@@ -362,18 +370,29 @@ POLE_FINISHES.forEach(p=>{
 /* ============================================================
    Bind controls
    ============================================================ */
-const bindRange = (id, key, label) => {
-  const el=document.getElementById(id), out=document.getElementById('v-'+label);
-  el.value=state[key]; out.textContent=state[key];
-  el.oninput=()=>{ state[key]=+el.value; out.textContent=el.value; clampCells(); render(); };
+// Each numeric setting has a slider (id=key) and a number box (id=key+"-num"), kept in sync.
+const bindRange = (key) => {
+  const slider=document.getElementById(key), num=document.getElementById(key+'-num');
+  const min=+slider.min, max=+slider.max;
+  slider.value=state[key]; num.value=state[key];
+  const commit=(val,fromNum)=>{
+    if(val==='') return;                 // let the box be empty mid-typing
+    let v=Math.round(+val); if(isNaN(v)) return;
+    v=Math.min(Math.max(v,min),max);
+    state[key]=v; slider.value=v;
+    if(!fromNum) num.value=v;             // don't fight the user while they type
+    clampCells(); render();
+  };
+  slider.addEventListener('input',()=>commit(slider.value,false));
+  num.addEventListener('input',()=>commit(num.value,true));
+  num.addEventListener('change',()=>{    // normalize on blur / Enter
+    let v=Math.round(parseFloat(num.value));
+    if(isNaN(v)) v=state[key];
+    v=Math.min(Math.max(v,min),max);
+    state[key]=v; slider.value=v; num.value=v; clampCells(); render();
+  });
 };
-bindRange('width','width','width');
-bindRange('height','height','height');
-bindRange('depth','depth','depth');
-bindRange('thick','thick','thick');
-bindRange('cols','cols','cols');
-bindRange('rows','rows','rows');
-bindRange('pole','pole','pole');
+['width','height','depth','thick','cols','rows','pole'].forEach(bindRange);
 
 document.getElementById('hooks').onchange=e=>{ state.hooks=e.target.checked; render(); };
 document.getElementById('drawer').onchange=e=>{ state.drawer=e.target.checked; render(); };
