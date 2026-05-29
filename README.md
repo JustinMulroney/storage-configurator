@@ -14,13 +14,19 @@ quote request.
 - **Add-ons** — rolling drawer cabinet and a deeper desk worktop.
 - **Live pricing** + full breakdown, JSON export, and an email quote-request form.
 
-## Running
-It's a single static file — just open `index.html`, or serve the folder.
+## Structure
+- `index.html` — marketing landing page (hero, features, materials, use cases, process,
+  FAQ, contact). The configurator is embedded as the centerpiece via an `<iframe>`.
+- `configure.html` — the standalone full-screen configurator app.
 
-## Configuration
-- Change `QUOTE_EMAIL` near the top of the `<script>` in `index.html` to the address
-  that should receive quote requests.
-- Material and finish prices live in the `WOODS` and `POLE_FINISHES` arrays.
+It's all static — just open `index.html`, or serve the folder.
+
+## Configuration (edit before going live)
+- **Quote recipient:** change `QUOTE_EMAIL` near the top of the `<script>` in `configure.html`.
+- **Contact details:** replace the placeholder email/phone/city marked with `<!-- EDIT -->`
+  comments in `index.html` (CTA button and footer).
+- **Prices:** material and finish rates live in the `WOODS` and `POLE_FINISHES` arrays in `configure.html`.
+- **Brand name:** "Modular Storage Studio" appears in `index.html` and `configure.html`.
 
 ## Deploy
 Static site — deploys to Vercel (or any static host) with no build step.
